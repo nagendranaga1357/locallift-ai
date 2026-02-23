@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,7 +14,17 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [studentMode, setStudentMode] = useState(false);
+  const [studentMode, setStudentMode] = useState(() => {
+    try {
+      return localStorage.getItem("locallift-student-mode") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("locallift-student-mode", String(studentMode));
+  }, [studentMode]);
 
   return (
     <QueryClientProvider client={queryClient}>

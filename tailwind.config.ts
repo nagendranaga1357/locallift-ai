@@ -57,6 +57,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Custom semantic tokens
+        "trust-high": "hsl(var(--trust-high))",
+        "trust-medium": "hsl(var(--trust-medium))",
+        "trust-low": "hsl(var(--trust-low))",
+        student: "hsl(var(--student))",
+        gem: "hsl(var(--gem))",
       },
       borderRadius: {
         lg: "var(--radius)",
