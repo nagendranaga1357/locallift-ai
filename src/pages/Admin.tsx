@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -9,6 +9,7 @@ import {
   Store,
   TrendingUp,
   BadgeCheck,
+  Shield,
 } from "lucide-react";
 import {
   BarChart,
@@ -25,7 +26,7 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { businesses as seedData, Business, calculateTrustScore, categories } from "@/data/businesses";
+import { Business, categories } from "@/data/businesses";
 import TrustBadge from "@/components/TrustBadge";
 import {
   Dialog,
@@ -45,60 +46,53 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const STORAGE_KEY = "locallift-admin-businesses";
+import { useBusinesses } from "@/context/BusinessContext";
+import { useAuth } from "@/context/AuthContext";
 
 const CATEGORY_COLORS = [
   "#f97316", "#ef4444", "#eab308", "#8b5cf6",
   "#3b82f6", "#06b6d4", "#22c55e", "#6b7280",
 ];
 
+const DEFAULT_IMAGE =
+  "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop";
+
+const emptyForm = {
+  name: "",
+  category: "Restaurant",
+  description: "",
+  address: "",
+  phone: "",
+  avgCost: "",
+  offers: "",
+  studentDiscount: "",
+  openHours: "9:00 AM - 9:00 PM",
+};
+
 const Admin = () => {
-  const [bizList, setBizList] = useState<Business[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [...seedData];
-    } catch {
-      return [...seedData];
-    }
-  });
+  const { user } = useAuth();
+  const {
+    businesses,
+    addBusiness,
+    updateBusiness,
+    deleteBusiness,
+    calculateTrustScore,
+    getPlatformStats,
+  } = useBusinesses();
 
   const [editingBiz, setEditingBiz] = useState<Business | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    category: "Cafe",
-    description: "",
-    address: "",
-    phone: "",
-    avgCost: "",
-    offers: "",
-    studentDiscount: "",
-  });
+  const [form, setForm] = useState(emptyForm);
 
-  // Persist to localStorage on every change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bizList));
-  }, [bizList]);
-
-  const totalViews = bizList.reduce((s, b) => s + b.views, 0);
-  const totalClicks = bizList.reduce((s, b) => s + b.clicks, 0);
+  const stats = getPlatformStats(businesses);
+  const totalViews = stats.totalViews;
+  const totalClicks = stats.totalClicks;
   const avgEngagement =
     totalViews > 0 ? ((totalClicks / totalViews) * 100).toFixed(1) : "0";
-  const verifiedCount = bizList.filter((b) => b.verified).length;
 
   const openNew = () => {
     setEditingBiz(null);
-    setForm({
-      name: "",
-      category: "Cafe",
-      description: "",
-      address: "",
-      phone: "",
-      avgCost: "",
-      offers: "",
-      studentDiscount: "",
-    });
+    setForm(emptyForm);
     setDialogOpen(true);
   };
 
@@ -113,66 +107,56 @@ const Admin = () => {
       avgCost: String(biz.avgCost),
       offers: biz.offers.join(", "),
       studentDiscount: biz.studentDiscount ? String(biz.studentDiscount) : "",
+      openHours: biz.openHours,
     });
     setDialogOpen(true);
   };
 
   const handleSave = () => {
-    if (!form.name) return;
+    if (!form.name.trim()) return;
+
     if (editingBiz) {
-      setBizList((prev) =>
-        prev.map((b) =>
-          b.id === editingBiz.id
-            ? {
-              ...b,
-              name: form.name,
-              category: form.category,
-              description: form.description,
-              address: form.address,
-              phone: form.phone,
-              avgCost: Number(form.avgCost) || b.avgCost,
-              offers: form.offers ? form.offers.split(",").map((s) => s.trim()) : [],
-              studentDiscount: form.studentDiscount ? Number(form.studentDiscount) : undefined,
-            }
-            : b
-        )
-      );
-    } else {
-      const newBiz: Business = {
-        id: String(Date.now()),
+      updateBusiness(editingBiz.id, {
         name: form.name,
-        category: form.category || "Other",
+        category: form.category,
         description: form.description,
         address: form.address,
+        phone: form.phone,
+        avgCost: Number(form.avgCost) || editingBiz.avgCost,
+        openHours: form.openHours,
+        offers: form.offers ? form.offers.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        studentDiscount: form.studentDiscount ? Number(form.studentDiscount) : undefined,
+      });
+    } else {
+      addBusiness({
+        name: form.name,
+        category: form.category,
+        description: form.description || `A great local business in Amalapuram.`,
+        address: form.address || "Amalapuram, AP 533201",
         lat: 16.578 + (Math.random() - 0.5) * 0.012,
         lng: 82.006 + (Math.random() - 0.5) * 0.012,
-        rating: 4.0,
-        reviewCount: 0,
         priceRange: "₹₹",
         avgCost: Number(form.avgCost) || 200,
         isOpen: true,
-        openHours: "9:00 AM - 9:00 PM",
+        openHours: form.openHours,
         phone: form.phone,
-        tags: [],
-        image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop",
-        clicks: 0,
-        views: 0,
-        offers: form.offers ? form.offers.split(",").map((s) => s.trim()) : [],
+        tags: [form.category.toLowerCase()],
+        image: DEFAULT_IMAGE,
+        offers: form.offers ? form.offers.split(",").map((s) => s.trim()).filter(Boolean) : [],
         nearCampus: false,
         studentDiscount: form.studentDiscount ? Number(form.studentDiscount) : undefined,
         established: new Date().getFullYear(),
-      };
-      setBizList((prev) => [...prev, newBiz]);
+      });
     }
     setDialogOpen(false);
   };
 
   const handleDelete = (id: string) => {
-    setBizList((prev) => prev.filter((b) => b.id !== id));
+    if (confirm("Remove this business listing?")) deleteBusiness(id);
   };
 
   // Chart data
-  const engagementChartData = bizList
+  const engagementChartData = [...businesses]
     .sort((a, b) => b.views - a.views)
     .slice(0, 8)
     .map((b) => ({
@@ -185,25 +169,34 @@ const Admin = () => {
     .filter((c) => c !== "All")
     .map((cat) => ({
       name: cat,
-      value: bizList.filter((b) => b.category === cat).length,
+      value: businesses.filter((b) => b.category === cat).length,
     }))
     .filter((d) => d.value > 0);
 
-  const trustChartData = bizList.map((b) => ({
-    name: b.name.split(" ")[0],
-    Trust: calculateTrustScore(b),
-  })).sort((a, b) => b.Trust - a.Trust).slice(0, 10);
+  const trustChartData = [...businesses]
+    .map((b) => ({ name: b.name.split(" ")[0], Trust: calculateTrustScore(b) }))
+    .sort((a, b) => b.Trust - a.Trust)
+    .slice(0, 10);
 
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-foreground">Business Dashboard</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-heading text-2xl font-bold text-foreground">
+              Business Dashboard
+            </h1>
+            <span className="flex items-center gap-1 rounded-full bg-trust-high/10 px-2.5 py-0.5 text-xs font-semibold text-trust-high">
+              <Shield className="h-3 w-3" /> Admin
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground">
-            Manage listings, track visibility, and grow your reach
+            Welcome back, <span className="font-medium text-foreground">{user?.name}</span>. Manage listings and track visibility.
           </p>
         </div>
+
+        {/* Add Business Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 rounded-full" onClick={openNew}>
@@ -220,7 +213,7 @@ const Admin = () => {
               <div>
                 <Label>Business Name *</Label>
                 <Input
-                  placeholder="e.g. Chai Corner"
+                  placeholder="e.g. Durga's Spicy Treat"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
@@ -235,9 +228,13 @@ const Admin = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.filter((c) => c !== "All").map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
+                    {categories
+                      .filter((c) => c !== "All")
+                      .map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -252,7 +249,7 @@ const Admin = () => {
               <div>
                 <Label>Address</Label>
                 <Input
-                  placeholder="e.g. 12 College Road, Near Main Gate"
+                  placeholder="e.g. Near RTC Bus Stand, Amalapuram"
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                 />
@@ -261,7 +258,7 @@ const Admin = () => {
                 <div>
                   <Label>Phone</Label>
                   <Input
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 88866 XXXXX"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
@@ -276,19 +273,29 @@ const Admin = () => {
                   />
                 </div>
               </div>
-              <div>
-                <Label>Student Discount (%)</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 10 (leave empty for none)"
-                  value={form.studentDiscount}
-                  onChange={(e) => setForm({ ...form, studentDiscount: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Student Discount (%)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 10"
+                    value={form.studentDiscount}
+                    onChange={(e) => setForm({ ...form, studentDiscount: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Open Hours</Label>
+                  <Input
+                    placeholder="9:00 AM - 9:00 PM"
+                    value={form.openHours}
+                    onChange={(e) => setForm({ ...form, openHours: e.target.value })}
+                  />
+                </div>
               </div>
               <div>
                 <Label>Offers (comma separated)</Label>
                 <Input
-                  placeholder="e.g. 10% off combo, Free dessert on Friday"
+                  placeholder="e.g. 10% off combo, Free chutney"
                   value={form.offers}
                   onChange={(e) => setForm({ ...form, offers: e.target.value })}
                 />
@@ -304,7 +311,7 @@ const Admin = () => {
       {/* Stats row */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { icon: Store, label: "Total Businesses", value: bizList.length, color: "text-primary" },
+          { icon: Store, label: "Total Businesses", value: businesses.length, color: "text-primary" },
           { icon: Eye, label: "Total Views", value: totalViews.toLocaleString(), color: "text-blue-600" },
           { icon: MousePointerClick, label: "Total Clicks", value: totalClicks.toLocaleString(), color: "text-orange-500" },
           { icon: TrendingUp, label: "Avg Engagement", value: `${avgEngagement}%`, color: "text-trust-high" },
@@ -324,7 +331,7 @@ const Admin = () => {
         ))}
       </div>
 
-      {/* Analytics Tabs */}
+      {/* Tabs */}
       <Tabs defaultValue="listings" className="mb-8">
         <TabsList className="mb-6 rounded-xl">
           <TabsTrigger value="listings">Listings</TabsTrigger>
@@ -333,7 +340,7 @@ const Admin = () => {
           <TabsTrigger value="distribution">Distribution</TabsTrigger>
         </TabsList>
 
-        {/* Table */}
+        {/* ── Listings Table ── */}
         <TabsContent value="listings">
           <div className="overflow-x-auto rounded-xl border border-border bg-card">
             <table className="w-full text-sm">
@@ -349,17 +356,21 @@ const Admin = () => {
                 </tr>
               </thead>
               <tbody>
-                {bizList.map((biz, i) => (
+                {businesses.map((biz, i) => (
                   <motion.tr
                     key={biz.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.03 }}
+                    transition={{ delay: i * 0.02 }}
                     className="border-b border-border last:border-0 hover:bg-secondary/30"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <img src={biz.image} alt="" className="h-9 w-9 rounded-lg object-cover" />
+                        <img
+                          src={biz.image}
+                          alt=""
+                          className="h-9 w-9 rounded-lg object-cover"
+                        />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <p className="font-medium text-card-foreground">{biz.name}</p>
@@ -388,7 +399,12 @@ const Admin = () => {
                     <td className="px-4 py-3 text-right text-muted-foreground">{biz.clicks.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(biz)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(biz)}
+                        >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button
@@ -408,7 +424,7 @@ const Admin = () => {
           </div>
         </TabsContent>
 
-        {/* Engagement Chart */}
+        {/* ── Engagement Chart ── */}
         <TabsContent value="engagement">
           <div className="rounded-xl border border-border bg-card p-6">
             <h3 className="mb-6 font-heading text-lg font-semibold text-foreground">
@@ -417,25 +433,9 @@ const Admin = () => {
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={engagementChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    color: "hsl(var(--card-foreground))",
-                  }}
-                />
+                <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--card-foreground))" }} />
                 <Legend />
                 <Bar dataKey="Views" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Clicks" fill="#3b82f6" radius={[4, 4, 0, 0]} />
@@ -444,58 +444,21 @@ const Admin = () => {
           </div>
         </TabsContent>
 
-        {/* Trust Chart */}
+        {/* ── Trust Chart ── */}
         <TabsContent value="trust">
           <div className="rounded-xl border border-border bg-card p-6">
             <h3 className="mb-6 font-heading text-lg font-semibold text-foreground">
               Trust Score Leaderboard
             </h3>
             <ResponsiveContainer width="100%" height={320}>
-              <BarChart
-                layout="vertical"
-                data={trustChartData}
-                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-              >
+              <BarChart layout="vertical" data={trustChartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={60}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    color: "hsl(var(--card-foreground))",
-                  }}
-                />
-                <Bar
-                  dataKey="Trust"
-                  radius={[0, 4, 4, 0]}
-                  fill="hsl(var(--primary))"
-                >
+                <XAxis type="number" domain={[0, 100]} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} width={60} />
+                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--card-foreground))" }} />
+                <Bar dataKey="Trust" radius={[0, 4, 4, 0]}>
                   {trustChartData.map((entry) => (
-                    <Cell
-                      key={entry.name}
-                      fill={
-                        entry.Trust >= 70
-                          ? "hsl(var(--trust-high))"
-                          : entry.Trust >= 45
-                            ? "hsl(var(--trust-medium))"
-                            : "hsl(var(--trust-low))"
-                      }
-                    />
+                    <Cell key={entry.name} fill={entry.Trust >= 70 ? "hsl(var(--trust-high))" : entry.Trust >= 45 ? "hsl(var(--trust-medium))" : "hsl(var(--trust-low))"} />
                   ))}
                 </Bar>
               </BarChart>
@@ -503,7 +466,7 @@ const Admin = () => {
           </div>
         </TabsContent>
 
-        {/* Pie chart — distribution */}
+        {/* ── Pie Chart ── */}
         <TabsContent value="distribution">
           <div className="rounded-xl border border-border bg-card p-6">
             <h3 className="mb-6 font-heading text-lg font-semibold text-foreground">
@@ -511,32 +474,12 @@ const Admin = () => {
             </h3>
             <ResponsiveContainer width="100%" height={320}>
               <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={110}
-                  dataKey="value"
-                  label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
-                  labelLine={false}
-                >
+                <Pie data={categoryData} cx="50%" cy="50%" outerRadius={110} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                   {categoryData.map((_, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
-                    />
+                    <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    color: "hsl(var(--card-foreground))",
-                  }}
-                />
+                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--card-foreground))" }} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>

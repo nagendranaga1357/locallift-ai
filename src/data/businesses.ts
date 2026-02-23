@@ -22,6 +22,7 @@ export interface Business {
   nearCampus: boolean;
   verified?: boolean;
   established?: number;
+  ownerId?: string; // id of the business_owner account who registered this listing
 }
 
 export type BadgeType = "verified" | "hidden-gem" | "trending" | "student-favorite" | "new";

@@ -1,19 +1,22 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, SlidersHorizontal, Sparkles, Gem, TrendingUp, GraduationCap, X } from "lucide-react";
+import {
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Gem,
+  TrendingUp,
+  GraduationCap,
+  X,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import BusinessCard from "@/components/BusinessCard";
 import BusinessDetailSheet from "@/components/BusinessDetailSheet";
-import {
-  businesses,
-  categories,
-  getRecommendations,
-  isHiddenGem,
-  isTrending,
-  Business,
-} from "@/data/businesses";
+import { Business } from "@/data/businesses";
+import { categories } from "@/data/businesses";
+import { useBusinesses } from "@/context/BusinessContext";
 
 interface DiscoverProps {
   studentMode: boolean;
@@ -34,6 +37,13 @@ const containerVariants = {
 };
 
 const Discover = ({ studentMode }: DiscoverProps) => {
+  const {
+    businesses,
+    isHiddenGem,
+    isTrending,
+    getRecommendations,
+  } = useBusinesses();
+
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
@@ -70,38 +80,22 @@ const Discover = ({ studentMode }: DiscoverProps) => {
     if (selectedCategory !== "All") {
       result = result.filter((b) => b.category === selectedCategory);
     }
-
-    if (activeFilters.includes("budget")) {
-      result = result.filter((b) => b.avgCost <= 200);
-    }
-    if (activeFilters.includes("studentDiscount")) {
-      result = result.filter((b) => b.studentDiscount);
-    }
-    if (activeFilters.includes("topRated")) {
-      result = result.filter((b) => b.rating >= 4.5);
-    }
-    if (activeFilters.includes("openNow")) {
-      result = result.filter((b) => b.isOpen);
-    }
-    if (activeFilters.includes("nearCampus")) {
-      result = result.filter((b) => b.nearCampus);
-    }
-    if (activeFilters.includes("verified")) {
-      result = result.filter((b) => b.verified);
-    }
+    if (activeFilters.includes("budget")) result = result.filter((b) => b.avgCost <= 200);
+    if (activeFilters.includes("studentDiscount")) result = result.filter((b) => b.studentDiscount);
+    if (activeFilters.includes("topRated")) result = result.filter((b) => b.rating >= 4.5);
+    if (activeFilters.includes("openNow")) result = result.filter((b) => b.isOpen);
+    if (activeFilters.includes("nearCampus")) result = result.filter((b) => b.nearCampus);
+    if (activeFilters.includes("verified")) result = result.filter((b) => b.verified);
 
     if (studentMode) {
       result.sort((a, b) => {
-        const scoreA =
-          (a.studentDiscount || 0) + (a.nearCampus ? 10 : 0) + (a.avgCost <= 150 ? 5 : 0);
-        const scoreB =
-          (b.studentDiscount || 0) + (b.nearCampus ? 10 : 0) + (b.avgCost <= 150 ? 5 : 0);
-        return scoreB - scoreA;
+        const sA = (a.studentDiscount || 0) + (a.nearCampus ? 10 : 0) + (a.avgCost <= 150 ? 5 : 0);
+        const sB = (b.studentDiscount || 0) + (b.nearCampus ? 10 : 0) + (b.avgCost <= 150 ? 5 : 0);
+        return sB - sA;
       });
     }
-
     return result;
-  }, [search, selectedCategory, activeFilters, studentMode]);
+  }, [search, selectedCategory, activeFilters, studentMode, businesses]);
 
   const recommendations = useMemo(
     () =>
@@ -110,20 +104,20 @@ const Discover = ({ studentMode }: DiscoverProps) => {
         minRating: 4.3,
         studentMode,
       }).slice(0, 4),
-    [studentMode]
+    [studentMode, businesses, getRecommendations]
   );
 
-  const hiddenGems = useMemo(() => businesses.filter(isHiddenGem), []);
+  const hiddenGems = useMemo(() => businesses.filter(isHiddenGem), [businesses, isHiddenGem]);
   const trendingBusinesses = useMemo(
     () => businesses.filter(isTrending).slice(0, 4),
-    []
+    [businesses, isTrending]
   );
 
   const showSections = !isFiltering;
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Search bar */}
+      {/* Search */}
       <div className="mb-6">
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -143,7 +137,6 @@ const Discover = ({ studentMode }: DiscoverProps) => {
           )}
         </div>
 
-        {/* Category pills */}
         <div className="mb-3 flex flex-wrap gap-2">
           {categories.map((cat) => (
             <Button
@@ -158,7 +151,6 @@ const Discover = ({ studentMode }: DiscoverProps) => {
           ))}
         </div>
 
-        {/* Quick filters */}
         <div className="flex flex-wrap items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 self-center text-muted-foreground" />
           {filterOptions.map((f) => (
@@ -205,7 +197,6 @@ const Discover = ({ studentMode }: DiscoverProps) => {
         </motion.div>
       )}
 
-      {/* Contextual sections (only when not filtering) */}
       <AnimatePresence>
         {showSections && (
           <>
@@ -253,9 +244,7 @@ const Discover = ({ studentMode }: DiscoverProps) => {
               >
                 <div className="mb-4 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-orange-500" />
-                  <h2 className="font-heading text-xl font-bold text-foreground">
-                    Trending Now
-                  </h2>
+                  <h2 className="font-heading text-xl font-bold text-foreground">Trending Now</h2>
                   <Badge className="ml-auto bg-orange-500 text-white">🔥 Hot</Badge>
                 </div>
                 <motion.div
@@ -288,12 +277,8 @@ const Discover = ({ studentMode }: DiscoverProps) => {
               >
                 <div className="mb-4 flex items-center gap-2">
                   <Gem className="h-5 w-5 text-gem" />
-                  <h2 className="font-heading text-xl font-bold text-foreground">
-                    Hidden Gems
-                  </h2>
-                  <Badge className="ml-auto border-gem/30 bg-gem/10 text-gem">
-                    Undiscovered
-                  </Badge>
+                  <h2 className="font-heading text-xl font-bold text-foreground">Hidden Gems</h2>
+                  <Badge className="ml-auto border-gem/30 bg-gem/10 text-gem">Undiscovered</Badge>
                 </div>
                 <motion.div
                   variants={containerVariants}
@@ -320,9 +305,7 @@ const Discover = ({ studentMode }: DiscoverProps) => {
       <section>
         <div className="mb-4 flex items-center gap-2">
           <h2 className="font-heading text-xl font-bold text-foreground">
-            {isFiltering
-              ? `Results (${filteredBusinesses.length})`
-              : "All Businesses"}
+            {isFiltering ? `Results (${filteredBusinesses.length})` : "All Businesses"}
           </h2>
           {!isFiltering && (
             <Badge variant="outline">{businesses.length} listed</Badge>
@@ -332,12 +315,8 @@ const Discover = ({ studentMode }: DiscoverProps) => {
           <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center">
             <Search className="mb-4 h-12 w-12 text-muted-foreground/40" />
             <p className="text-lg font-medium text-muted-foreground">No businesses found</p>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Try adjusting your search or filters
-            </p>
-            <Button variant="outline" size="sm" onClick={clearAll}>
-              Clear filters
-            </Button>
+            <p className="mb-4 text-sm text-muted-foreground">Try adjusting your search or filters</p>
+            <Button variant="outline" size="sm" onClick={clearAll}>Clear filters</Button>
           </div>
         ) : (
           <motion.div
